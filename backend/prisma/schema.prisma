@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id
+  email        String        @unique
+  name         String?
+  image        String?
+  createdAt    DateTime      @default(now())
+  createdRooms Room[]        @relation("RoomCreator")
+  participants Participant[]
+  recordings   Recording[]
+  analyses     Analysis[]
+}
+
+model Room {
+  id          String        @id @default(uuid())
+  roomCode    String        @unique
+  livekitName String        @unique
+  creatorId   String
+  status      RoomStatus    @default(WAITING)
+  createdAt   DateTime      @default(now())
+  endedAt     DateTime?
+  creator     User          @relation("RoomCreator", fields: [creatorId], references: [id])
+  participants Participant[]
+  recordings   Recording[]
+}
+
+model Participant {
+  id          String   @id @default(uuid())
+  userId      String
+  roomId      String
+  identity    String
+  consentedAt DateTime?
+  joinedAt    DateTime @default(now())
+  leftAt      DateTime?
+  user        User     @relation(fields: [userId], references: [id])
+  room        Room     @relation(fields: [roomId], references: [id])
+  @@unique([userId, roomId])
+  @@unique([roomId, identity])
+}
+
+model Recording {
+  id          String           @id @default(uuid())
+  userId      String
+  roomId      String
+  status      RecordingStatus  @default(PENDING)
+  storagePath String?
+  durationSec Int?
+  error       String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  user        User             @relation(fields: [userId], references: [id])
+  room        Room             @relation(fields: [roomId], references: [id])
+  chunks      RecordingChunk[]
+  transcript  Transcript?
+  analysis    Analysis?
+}
+
+model RecordingChunk {
+  id          String   @id @default(uuid())
+  recordingId String
+  sequence    Int
+  storagePath String
+  createdAt   DateTime @default(now())
+  recording   Recording @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  @@unique([recordingId, sequence])
+}
+
+model Transcript {
+  id          String   @id @default(uuid())
+  recordingId String   @unique
+  content     String   @db.Text
+  createdAt   DateTime @default(now())
+  recording   Recording @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+}
+
+model Analysis {
+  id           String   @id @default(uuid())
+  userId       String
+  recordingId  String   @unique
+  overallScore Int?
+  report       Json
+  createdAt    DateTime @default(now())
+  user         User @relation(fields: [userId], references: [id])
+  recording    Recording @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+}
+
+enum RoomStatus {
+  WAITING
+  ACTIVE
+  ENDED
+}
+
+enum RecordingStatus {
+  PENDING
+  RECORDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
